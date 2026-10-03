@@ -1,7 +1,10 @@
-# Landing page for https://pkgs.btso.dev/. Everything else on the host is
-# served straight from the R2 bucket. Deploy with `wrangler deploy`.
+# Landing page for https://pkgs.btso.dev/ and the redirect from plain HTTP.
+# Everything else on the host is served straight from the R2 bucket. Deploy with `wrangler deploy`.
 name = "btso-pkgs-index"
 main = "index.js"
 compatibility_date = "2026-09-01"
 workers_dev = false
-routes = [{ pattern = "pkgs.btso.dev/", zone_name = "btso.dev" }]
+routes = [
+  { pattern = "pkgs.btso.dev/", zone_name = "btso.dev" },
+  { pattern = "http://pkgs.btso.dev/*", zone_name = "btso.dev" },
+]

@@ -19,7 +19,14 @@ they update with the rest of your system.</p>
 `;
 
 export default {
-  fetch() {
+  fetch(request) {
+    // Plain HTTP is never served: a command copied without its https://
+    // prefix must not fetch the installer over an unprotected connection.
+    const url = new URL(request.url);
+    if (url.protocol === "http:") {
+      url.protocol = "https:";
+      return Response.redirect(url.toString(), 301);
+    }
     return new Response(page, {
       headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" },
     });
