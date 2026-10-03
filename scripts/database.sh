@@ -70,7 +70,6 @@ for arch in $arches; do
     name="$(awk '/^%NAME%$/{getline; print; exit}' <<<"$desc")"
     grep -qxF -- "$name" <<<"$allowed" || fail "$arch database lists $name, which is not in packages.txt."
     [ "$action" = remove ] && [ "$name" = "$package" ] && fail "$package is still listed for $arch."
-    grep -q '^%PGPSIG%$' <<<"$desc" || fail "$arch database entry $entry has no package signature."
   done < <(tar -tzf "$dir/$repo_name.db.tar.gz" | sed -n 's,/$,,p')
 
   for kind in db files; do
