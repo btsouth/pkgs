@@ -9,7 +9,6 @@ apps update with the rest of your system (`omarchy update` or `pacman -Syu`).
 | `omadrop` | https://github.com/btsouth/omadrop |
 | `omaroll` | https://github.com/btsouth/omaroll |
 | `omakade` | https://github.com/btsouth/omakade |
-| `notestrip` | https://github.com/btsouth/notestrip |
 
 ## Install
 
