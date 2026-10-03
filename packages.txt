@@ -1,0 +1,5 @@
+omadrop
+omaframe
+omakade
+omaroll
+notestrip
