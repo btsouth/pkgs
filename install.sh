@@ -35,12 +35,16 @@ trap 'rm -rf "$tmp"' EXIT
 say "Importing the btsouth signing key"
 curl -fsSL "$repo_url/btsouth.gpg" -o "$tmp/btsouth.gpg" ||
   err "Could not fetch the signing key from $repo_url/btsouth.gpg"
-$sudo pacman-key --add "$tmp/btsouth.gpg" ||
-  err "pacman-key could not import the signing key."
+# pacman-key is chatty about the whole keyring; show its output only on failure.
+$sudo pacman-key --add "$tmp/btsouth.gpg" >"$tmp/key.log" 2>&1 || {
+  cat "$tmp/key.log" >&2
+  err "pacman-key could not import the signing key."; }
 # --lsign-key only signs the fingerprint it is given, so importing whatever
 # the server sent is harmless; this line is what decides trust.
-$sudo pacman-key --lsign-key "$REPO_SIGNING_KEY" ||
-  err "pacman-key could not trust $REPO_SIGNING_KEY. The key served by $repo_url is not the one this installer expects."
+$sudo pacman-key --lsign-key "$REPO_SIGNING_KEY" >"$tmp/key.log" 2>&1 || {
+  cat "$tmp/key.log" >&2
+  err "pacman-key could not trust $REPO_SIGNING_KEY. The key served by $repo_url is not the one this installer expects."; }
+say "Trusted key $REPO_SIGNING_KEY"
 
 if grep -q '^\[btsouth\]' "$pacman_conf" 2>/dev/null; then
   say "btsouth repository already configured"
