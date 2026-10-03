@@ -6,7 +6,9 @@ name: Publish
 # from the release, signed here. Projects are listed in packages.txt.
 #
 # Download and inspection run without credentials. The signing key and the R2
-# credentials are scoped to the later steps that need them.
+# credentials are scoped to the later steps that need them. Workflows only
+# run from this repository: there is no pull_request trigger, so code from a
+# fork never runs here.
 
 on:
   # Every hour, publish any new release of a project in packages.txt.
@@ -49,7 +51,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Download and check the release packages
         id: plan
@@ -95,8 +99,8 @@ jobs:
             gpg --batch --yes --local-user "$SIGNING_KEY" --detach-sign --no-armor "$pkg"
           done
 
-      # Fetch the existing database so the other packages stay listed, add the
-      # new package to it, and sign the result.
+      # Fetch the existing database so the other packages stay listed, check
+      # it is still ours, add the new packages and sign the result.
       - name: Rebuild the repository database
         if: steps.plan.outputs.publish == 'true'
         env:
@@ -105,36 +109,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           AWS_DEFAULT_REGION: auto
-        run: |
-          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-          for dir in repo/*/; do
-            arch="$(basename "$dir")"
-            for kind in db files; do
-              # A missing database is expected the first time; any other
-              # failure must not be mistaken for an empty repository.
-              if aws s3api head-object --endpoint-url "$endpoint" --bucket "$R2_BUCKET" \
-                   --key "$arch/$REPO_NAME.$kind.tar.gz" >/dev/null 2>head.err; then
-                aws s3 cp "s3://$R2_BUCKET/$arch/$REPO_NAME.$kind.tar.gz" "$dir" \
-                  --endpoint-url "$endpoint"
-              elif ! grep -q 'Not Found\|404' head.err; then
-                cat head.err; echo "::error::Could not read the existing $arch database."; exit 1
-              fi
-            done
-            # repo-add ships with pacman, which the Ubuntu runner does not
-            # have. It runs as the runner's uid, without the signing key; the
-            # database is signed below on the runner.
-            docker run --rm -u "$(id -u):$(id -g)" -v "$PWD/$dir:/repo" -w /repo \
-              archlinux:base bash -euc "repo-add $REPO_NAME.db.tar.gz *.pkg.tar.zst"
-            for kind in db files; do
-              gpg --batch --yes --local-user "$SIGNING_KEY" --detach-sign --no-armor \
-                "$dir$REPO_NAME.$kind.tar.gz"
-              # pacman requests `<repo>.db` and `<repo>.db.sig`.
-              rm -f "$dir$REPO_NAME.$kind" "$dir$REPO_NAME.$kind.tar.gz.old"
-              cp "$dir$REPO_NAME.$kind.tar.gz" "$dir$REPO_NAME.$kind"
-              cp "$dir$REPO_NAME.$kind.tar.gz.sig" "$dir$REPO_NAME.$kind.sig"
-            done
-            ls -la "$dir"
-          done
+        run: scripts/database.sh add
 
       - name: Publish to R2
         if: steps.plan.outputs.publish == 'true'
@@ -170,3 +145,9 @@ jobs:
             --content-type application/pgp-keys --cache-control "no-cache"
           aws s3 cp install.sh "s3://$R2_BUCKET/install.sh" --endpoint-url "$endpoint" \
             --content-type "text/x-shellscript; charset=utf-8" --cache-control "no-cache"
+
+      # Runs every hour with the schedule: a changed installer, a swapped key
+      # or a database we did not sign fails the run and sends a notification.
+      - name: Verify what is published
+        if: inputs.dry_run != true && steps.plan.outputs.credentials == 'true'
+        run: scripts/verify-live.sh

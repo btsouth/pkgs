@@ -2,10 +2,13 @@
 # Downloads the Arch packages attached to one GitHub release, checks them, and
 # stages them under repo/<arch>/ ready to be signed.
 #
-#   scripts/collect.sh <package> <github-repo> <tag>
+#   scripts/collect.sh <package> <github-repo> <tag> [attested]
+#
+# With `attested`, each package must carry a GitHub build attestation proving
+# that the project's own Actions workflow built it.
 set -euo pipefail
 
-package="$1" repo="$2" tag="$3"
+package="$1" repo="$2" tag="$3" attested="${4:-}"
 fail() { echo "::error::$*"; exit 1; }
 
 [[ "$tag" =~ ^v[0-9][0-9A-Za-z._+-]*$ ]] || fail "$tag does not look like a release tag."
@@ -42,6 +45,11 @@ for arch in x86_64 aarch64 any; do
         fail "$file does not match the release SHA256SUMS."
     else
       echo "::warning::$repo $tag has no checksum for $file."
+    fi
+    if [ "$attested" = attested ]; then
+      gh attestation verify "$pkg" --repo "$repo" >/dev/null ||
+        fail "$file has no valid build attestation from $repo."
+      echo "$file: build attestation verified"
     fi
     # An `any` package is served from every architecture directory.
     if [ "$arch" = any ]; then dests="x86_64 aarch64"; else dests="$arch"; fi

@@ -46,12 +46,20 @@ $sudo pacman-key --lsign-key "$REPO_SIGNING_KEY" >"$tmp/key.log" 2>&1 || {
   err "pacman-key could not trust $REPO_SIGNING_KEY. The key served by $repo_url is not the one this installer expects."; }
 say "Trusted key $REPO_SIGNING_KEY"
 
+# SigLevel = Required makes pacman insist on a signed package list as well as
+# signed packages, so nobody between you and the server can alter either.
 if grep -q '^\[btsouth\]' "$pacman_conf" 2>/dev/null; then
-  say "btsouth repository already configured"
+  if grep -A2 '^\[btsouth\]' "$pacman_conf" | grep -q '^SigLevel'; then
+    say "btsouth repository already configured"
+  else
+    say "Requiring signatures for the btsouth repository"
+    $sudo sed -i '/^\[btsouth\]$/a SigLevel = Required' "$pacman_conf" ||
+      err "Could not write to $pacman_conf"
+  fi
 else
   say "Adding the btsouth repository to $pacman_conf"
   # shellcheck disable=SC2016
-  printf '\n[btsouth]\nServer = %s/$arch\n' "$repo_url" |
+  printf '\n[btsouth]\nSigLevel = Required\nServer = %s/$arch\n' "$repo_url" |
     $sudo tee -a "$pacman_conf" >/dev/null ||
     err "Could not write to $pacman_conf"
 fi
@@ -69,7 +77,7 @@ if [ "$(id -u)" -ne 0 ] && [ -d "$hook_dir" ] && [ "$pacman_conf" = /etc/pacman.
 # Delete this file if you remove the repository.
 grep -q '^\[btsouth\]' /etc/pacman.conf && exit 0
 echo "Restoring the btsouth package repository"
-printf '\n[btsouth]\nServer = https://pkgs.btso.dev/$arch\n' |
+printf '\n[btsouth]\nSigLevel = Required\nServer = https://pkgs.btso.dev/$arch\n' |
   sudo tee -a /etc/pacman.conf >/dev/null
 HOOK
   say "Added an Omarchy hook so the repository survives a channel switch"

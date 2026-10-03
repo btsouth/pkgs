@@ -9,17 +9,26 @@ set -euo pipefail
 site="${BTSOUTH_REPO_URL:-https://pkgs.btso.dev}"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# packages.txt: one project per line, "<package> [<owner>/<repo>]". The
-# repository defaults to btsouth/<package>.
-repo_for() {
-  awk -v p="$1" '$1 == p { print ($2 != "" ? $2 : "btsouth/" p); exit }' \
-    <(grep -vE '^\s*(#|$)' packages.txt)
+# packages.txt: one project per line, "<package> [<owner>/<repo>] [attested]".
+# The repository defaults to btsouth/<package>.
+entries() {
+  grep -vE '^\s*(#|$)' packages.txt | while read -r package rest; do
+    repo="btsouth/$package" attested=""
+    for word in $rest; do
+      case "$word" in
+        attested) attested=attested ;;
+        */*) repo="$word" ;;
+        *) echo "::error::packages.txt: unknown option $word for $package." >&2; exit 1 ;;
+      esac
+    done
+    echo "$package $repo $attested"
+  done
 }
 
 if [ "$#" -eq 2 ]; then
-  repo="$(repo_for "$1")"
-  [ -n "$repo" ] || { echo "::error::$1 is not listed in packages.txt."; exit 1; }
-  "$here/collect.sh" "$1" "$repo" "$2"
+  read -r _ repo attested < <(entries | awk -v p="$1" '$1 == p') ||
+    { echo "::error::$1 is not listed in packages.txt."; exit 1; }
+  "$here/collect.sh" "$1" "$repo" "$2" "$attested"
   exit 0
 fi
 
@@ -37,8 +46,7 @@ for arch in x86_64 aarch64; do
   esac
 done
 
-grep -vE '^\s*(#|$)' packages.txt | while read -r package repo _; do
-  repo="${repo:-btsouth/$package}"
+entries | while read -r package repo attested; do
   # `releases/latest` is the newest release that is neither a draft nor a
   # prerelease. A project with no release yet is skipped, not an error.
   release="$(gh api "repos/$repo/releases/latest" 2>/dev/null)" || {
@@ -61,7 +69,7 @@ grep -vE '^\s*(#|$)' packages.txt | while read -r package repo _; do
   done <<<"$files"
   if [ "$missing" = 1 ]; then
     echo "$package: publishing $tag"
-    "$here/collect.sh" "$package" "$repo" "$tag"
+    "$here/collect.sh" "$package" "$repo" "$tag" "$attested"
   else
     echo "$package: $tag is already served"
   fi

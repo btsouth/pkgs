@@ -27,7 +27,7 @@ To do it by hand:
 curl -fsSL https://pkgs.btso.dev/btsouth.gpg | sudo pacman-key --add -
 sudo pacman-key --lsign-key AA378A651D659C56BE5DB17B2F78D0FE524BB309
 
-printf '\n[btsouth]\nServer = https://pkgs.btso.dev/$arch\n' | sudo tee -a /etc/pacman.conf
+printf '\n[btsouth]\nSigLevel = Required\nServer = https://pkgs.btso.dev/$arch\n' | sudo tee -a /etc/pacman.conf
 sudo pacman -Syu omaframe
 ```
 

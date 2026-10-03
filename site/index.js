@@ -28,7 +28,14 @@ export default {
       return Response.redirect(url.toString(), 301);
     }
     return new Response(page, {
-      headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" },
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "public, max-age=300",
+        "strict-transport-security": "max-age=31536000",
+        "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer",
+      },
     });
   },
 };
