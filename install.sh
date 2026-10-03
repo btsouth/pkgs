@@ -52,6 +52,25 @@ else
     err "Could not write to $pacman_conf"
 fi
 
+# `omarchy refresh pacman` (a channel switch) rewrites pacman.conf from a
+# template and drops added repositories. Omarchy runs this hook right after,
+# so the repository comes back before packages update.
+hook_dir="${BTSOUTH_HOOK_DIR:-$HOME/.config/omarchy/hooks}"
+if [ "$(id -u)" -ne 0 ] && [ -d "$hook_dir" ] && [ "$pacman_conf" = /etc/pacman.conf ]; then
+  mkdir -p "$hook_dir/pre-refresh-pacman.d"
+  cat > "$hook_dir/pre-refresh-pacman.d/btsouth-repo" <<'HOOK'
+#!/bin/bash
+# Installed by https://pkgs.btso.dev/install.sh. Puts the btsouth package
+# repository back after `omarchy refresh pacman` resets /etc/pacman.conf.
+# Delete this file if you remove the repository.
+grep -q '^\[btsouth\]' /etc/pacman.conf && exit 0
+echo "Restoring the btsouth package repository"
+printf '\n[btsouth]\nServer = https://pkgs.btso.dev/$arch\n' |
+  sudo tee -a /etc/pacman.conf >/dev/null
+HOOK
+  say "Added an Omarchy hook so the repository survives a channel switch"
+fi
+
 if [ "$#" -eq 0 ]; then
   $sudo pacman -Sy || err "pacman could not refresh its package lists."
   say "Repository added. Install with: sudo pacman -S <package>"

@@ -35,7 +35,9 @@ The second command trusts one exact key fingerprint. If the key served by
 `pkgs.btso.dev` is ever a different one, that command fails on purpose.
 
 On Omarchy, switching release channel resets `/etc/pacman.conf` and drops
-added repositories. Run the install command again afterwards.
+added repositories. The installer adds a small hook at
+`~/.config/omarchy/hooks/pre-refresh-pacman.d/btsouth-repo` that puts this one
+back, so there is nothing to redo.
 
 ## Remove
 
@@ -43,6 +45,7 @@ Delete the `[btsouth]` block from `/etc/pacman.conf`, then:
 
 ```sh
 sudo pacman-key --delete AA378A651D659C56BE5DB17B2F78D0FE524BB309
+rm -f ~/.config/omarchy/hooks/pre-refresh-pacman.d/btsouth-repo
 ```
 
 Installed apps stay installed; they just stop receiving updates.
@@ -62,6 +65,21 @@ To publish straight after a release instead of waiting for the hourly run:
 gh workflow run publish.yml -R btsouth/pkgs
 ```
 
+## Pulling a release
+
+The repository follows each project's latest release. To roll back a bad one,
+delete that GitHub release or mark it as a prerelease, then run the publish
+workflow. It republishes the release that is now the latest. People who
+already took the bad version get the older one with `sudo pacman -Syuu`, or
+the fix on its next release.
+
+To take a project out altogether, remove its line from
+[packages.txt](packages.txt), then:
+
+```sh
+gh workflow run remove.yml -R btsouth/pkgs -f package=<package>
+```
+
 ## Adding a project
 
 1. Attach the package to the project's GitHub release, named the way
@@ -71,4 +89,6 @@ gh workflow run publish.yml -R btsouth/pkgs
 2. Add one line to [packages.txt](packages.txt) and push. That publishes it.
 3. Add the project to the table at the top.
 
-Nothing needs setting up in the project's own repository.
+Nothing needs setting up in the project's own repository. The page at
+https://pkgs.btso.dev lives in [site/](site) and is deployed with
+`wrangler deploy`.

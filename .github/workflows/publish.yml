@@ -12,10 +12,11 @@ on:
   # Every hour, publish any new release of a project in packages.txt.
   schedule:
     - cron: "17 * * * *"
-  # Adding a project to packages.txt publishes it straight away.
+  # Adding a project to packages.txt publishes it straight away, and a
+  # changed installer or key goes out with the push.
   push:
     branches: [main]
-    paths: [packages.txt]
+    paths: [packages.txt, install.sh, btsouth.gpg]
   # Run by hand to publish now. Leave package and tag empty to publish
   # whatever is new; fill both in to publish one specific release.
   workflow_dispatch:
@@ -48,7 +49,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Download and check the release packages
         id: plan
@@ -75,6 +76,7 @@ jobs:
             echo "::warning::R2 credentials are not set, so nothing was published."; publish=false
           fi
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "credentials=$HAS_CREDENTIALS" >> "$GITHUB_OUTPUT"
 
       - name: Sign the packages
         if: steps.plan.outputs.publish == 'true'
@@ -150,10 +152,21 @@ jobs:
             --exclude "*" --include "*.pkg.tar.zst" --include "*.pkg.tar.zst.sig"
           aws s3 cp repo/ "s3://$R2_BUCKET/" --recursive --endpoint-url "$endpoint" \
             --exclude "*.pkg.tar.zst*" --cache-control "no-cache"
-          # The key and installer are published from this repository, so what
-          # users fetch is always the reviewed copy.
+          echo "Published to https://pkgs.btso.dev"
+
+      # The key and installer are published from this repository, so what
+      # users fetch is always the reviewed copy.
+      - name: Publish the installer and key
+        if: inputs.dry_run != true && steps.plan.outputs.credentials == 'true'
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
           aws s3 cp btsouth.gpg "s3://$R2_BUCKET/btsouth.gpg" --endpoint-url "$endpoint" \
             --content-type application/pgp-keys --cache-control "no-cache"
           aws s3 cp install.sh "s3://$R2_BUCKET/install.sh" --endpoint-url "$endpoint" \
             --content-type "text/x-shellscript; charset=utf-8" --cache-control "no-cache"
-          echo "Published to https://pkgs.btso.dev"

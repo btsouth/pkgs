@@ -23,6 +23,20 @@ if [ "$#" -eq 2 ]; then
   exit 0
 fi
 
+# What each architecture's database lists right now, as "<name>-<version>".
+# The database decides, not the files in the bucket: a release that was
+# rolled back still has its file there but is no longer listed.
+served="$(mktemp -d)"
+trap 'rm -rf "$served"' EXIT
+for arch in x86_64 aarch64; do
+  code="$(curl -s -o "$served/$arch.db" -w '%{http_code}' "$site/$arch/btsouth.db")"
+  case "$code" in
+    200) tar -tzf "$served/$arch.db" | sed -n 's,/$,,p' > "$served/$arch" ;;
+    404) : > "$served/$arch" ;;
+    *) echo "::error::$site answered $code for the $arch database."; exit 1 ;;
+  esac
+done
+
 grep -vE '^\s*(#|$)' packages.txt | while read -r package repo _; do
   repo="${repo:-btsouth/$package}"
   # `releases/latest` is the newest release that is neither a draft nor a
@@ -30,19 +44,21 @@ grep -vE '^\s*(#|$)' packages.txt | while read -r package repo _; do
   release="$(gh api "repos/$repo/releases/latest" 2>/dev/null)" || {
     echo "$package: no published release yet"; continue; }
   tag="$(jq -r .tag_name <<<"$release")"
+  files="$(jq -r --arg p "$package" \
+    '.assets[].name | select(startswith($p + "-") and endswith(".pkg.tar.zst"))' <<<"$release" |
+    grep -E -- '-[0-9]+-(x86_64|aarch64|any)\.pkg\.tar\.zst$' || true)"
+  if [ -z "$files" ]; then
+    echo "::warning::$package: release $tag has no Arch package attached."
+    continue
+  fi
   missing=0
   while read -r file; do
-    arch="${file%.pkg.tar.zst}"; arch="${arch##*-}"
-    [ "$arch" = any ] && arch=x86_64
-    code="$(curl -s -o /dev/null -w '%{http_code}' "$site/$arch/$file")"
-    case "$code" in
-      200) ;;
-      404) missing=1 ;;
-      *) echo "::error::$site answered $code for $file."; exit 1 ;;
-    esac
-  done < <(jq -r --arg p "$package" \
-    '.assets[].name | select(startswith($p + "-") and endswith(".pkg.tar.zst"))' <<<"$release" |
-    grep -E -- '-[0-9]+-(x86_64|aarch64|any)\.pkg\.tar\.zst$' || true)
+    entry="${file%.pkg.tar.zst}"; arch="${entry##*-}"; entry="${entry%-*}"
+    if [ "$arch" = any ]; then arches="x86_64 aarch64"; else arches="$arch"; fi
+    for arch in $arches; do
+      grep -qxF -- "$entry" "$served/$arch" || missing=1
+    done
+  done <<<"$files"
   if [ "$missing" = 1 ]; then
     echo "$package: publishing $tag"
     "$here/collect.sh" "$package" "$repo" "$tag"
