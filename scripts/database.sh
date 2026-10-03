@@ -76,7 +76,8 @@ for arch in $arches; do
     file="$dir/$repo_name.$kind.tar.gz"
     gpg --batch --yes --local-user "$SIGNING_KEY" --detach-sign --no-armor "$file"
     # pacman requests `<repo>.db` and `<repo>.db.sig`.
-    rm -f "$dir/$repo_name.$kind" "$file.old" "$file.old.sig"
+    # repo-add leaves symlinks under those names; replace them with files.
+    rm -f "$dir/$repo_name.$kind" "$dir/$repo_name.$kind.sig" "$file.old" "$file.old.sig"
     cp "$file" "$dir/$repo_name.$kind"
     cp "$file.sig" "$dir/$repo_name.$kind.sig"
   done
