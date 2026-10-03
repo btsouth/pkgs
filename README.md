@@ -35,6 +35,9 @@ sudo pacman -Sy omaframe
 The second command trusts one exact key fingerprint. If the key served by
 `pkgs.btso.dev` is ever a different one, that command fails on purpose.
 
+On Omarchy, switching release channel resets `/etc/pacman.conf` and drops
+added repositories. Run the install command again afterwards.
+
 ## Remove
 
 Delete the `[btsouth]` block from `/etc/pacman.conf`, then:
