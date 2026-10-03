@@ -21,6 +21,17 @@ curl -fsSL https://pkgs.btso.dev/install.sh | bash -s -- omaframe
 Already have one of these apps installed from a release download? Run the same
 command. The package name is the same, so it carries on from where you are.
 
+Omakade is also in Omarchy's repository, which pacman prefers during normal
+updates. To install this repository's version explicitly:
+
+```sh
+curl -fsSL https://pkgs.btso.dev/install.sh | bash
+sudo pacman -S btsouth/omakade
+```
+
+To update it directly from this repository on Omarchy, use
+`sudo pacman -Syu btsouth/omakade`.
+
 To do it by hand:
 
 ```sh

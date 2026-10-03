@@ -12,8 +12,14 @@ const page = `<!doctype html>
 <p>A signed pacman repository for my Omarchy and Arch apps. Add it once and
 they update with the rest of your system.</p>
 <pre>curl -fsSL https://pkgs.btso.dev/install.sh | bash -s -- omaframe</pre>
-<p>Swap <code>omaframe</code> for <code>omaroll</code>, <code>omakade</code> or
-<code>omadrop</code>. The package list, manual steps and signing key are on
+<p>Swap <code>omaframe</code> for <code>omaroll</code> or <code>omadrop</code>.
+Already installed from a release download? Run the command once to add repository updates.</p>
+<p>For Omakade on Omarchy, select this repository explicitly:</p>
+<pre>curl -fsSL https://pkgs.btso.dev/install.sh | bash
+sudo pacman -S btsouth/omakade</pre>
+<p>Omarchy's repository takes priority during normal updates. To update Omakade
+from this repository, use <code>sudo pacman -Syu btsouth/omakade</code>.</p>
+<p>The package list, manual steps and signing key are on
 <a href="https://github.com/btsouth/pkgs">GitHub</a>.</p>
 </html>
 `;
