@@ -1,23 +1,30 @@
 name: Publish
 
-# Promotes the Arch package attached to a published GitHub release into the
-# btsouth pacman repository on Cloudflare R2, so users get it through
+# Promotes the Arch packages attached to published GitHub releases into the
+# btsouth pacman repository on Cloudflare R2, so users get them through
 # `pacman -Syu`. Nothing is rebuilt: the repository serves the exact package
-# from the release, signed here.
+# from the release, signed here. Projects are listed in packages.txt.
 #
 # Download and inspection run without credentials. The signing key and the R2
 # credentials are scoped to the later steps that need them.
 
 on:
+  # Every hour, publish any new release of a project in packages.txt.
+  schedule:
+    - cron: "17 * * * *"
+  # Adding a project to packages.txt publishes it straight away.
+  push:
+    branches: [main]
+    paths: [packages.txt]
+  # Run by hand to publish now. Leave package and tag empty to publish
+  # whatever is new; fill both in to publish one specific release.
   workflow_dispatch:
     inputs:
       package:
-        description: "Package and repository name, e.g. omaframe (must be in packages.txt)"
-        required: true
+        description: "Package name from packages.txt, e.g. omaframe (empty: everything new)"
         type: string
       tag:
-        description: "Published release tag, e.g. v0.7.4"
-        required: true
+        description: "Release tag, e.g. v0.7.4 (required with package)"
         type: string
       dry_run:
         description: "Download and validate only; do not sign or publish"
@@ -37,78 +44,40 @@ env:
 
 jobs:
   publish:
-    name: Publish ${{ inputs.package }} ${{ inputs.tag }}
+    name: Publish
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    env:
-      PACKAGE: ${{ inputs.package }}
-      TAG: ${{ inputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check the release is publishable
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          grep -qxF -- "$PACKAGE" packages.txt || {
-            echo "::error::$PACKAGE is not listed in packages.txt."; exit 1; }
-          [[ "$TAG" =~ ^v[0-9][0-9A-Za-z._+-]*$ ]] || {
-            echo "::error::$TAG does not look like a release tag."; exit 1; }
-          state="$(gh release view "$TAG" -R "btsouth/$PACKAGE" --json isDraft,isPrerelease)" || {
-            echo "::error::btsouth/$PACKAGE has no published release $TAG."; exit 1; }
-          [ "$(jq -r .isDraft <<<"$state")" = "false" ] || {
-            echo "::error::$TAG is still a draft."; exit 1; }
-          [ "$(jq -r .isPrerelease <<<"$state")" = "false" ] || {
-            echo "::error::$TAG is a prerelease; the repository is stable only."; exit 1; }
-
       - name: Download and check the release packages
+        id: plan
         env:
           GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ inputs.package }}
+          TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          HAS_CREDENTIALS: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
         run: |
-          mkdir -p assets
-          gh release download "$TAG" -R "btsouth/$PACKAGE" -D assets \
-            -p "$PACKAGE-*.pkg.tar.zst" -p 'SHA256SUMS*'
-          shopt -s nullglob
-          found=0
-          for arch in x86_64 aarch64 any; do
-            for pkg in assets/"$PACKAGE"-*-"$arch".pkg.tar.zst; do
-              file="$(basename "$pkg")"
-              # The package must be what the release says it is: right name,
-              # right version, right architecture.
-              info="$(tar --zstd -xOf "$pkg" .PKGINFO)"
-              name="$(sed -n 's/^pkgname = //p' <<<"$info")"
-              ver="$(sed -n 's/^pkgver = //p' <<<"$info")"
-              parch="$(sed -n 's/^arch = //p' <<<"$info")"
-              [ "$name" = "$PACKAGE" ] || {
-                echo "::error::$file contains package $name."; exit 1; }
-              [ "${ver%-*}" = "${TAG#v}" ] || {
-                echo "::error::$file is version $ver but the tag is $TAG."; exit 1; }
-              [ "$parch" = "$arch" ] || {
-                echo "::error::$file is built for $parch."; exit 1; }
-              [ "$file" = "$name-$ver-$parch.pkg.tar.zst" ] || {
-                echo "::error::$file is not named $name-$ver-$parch.pkg.tar.zst."; exit 1; }
-              sum="$(sha256sum "$pkg" | cut -d ' ' -f 1)"
-              if cat assets/SHA256SUMS* 2>/dev/null | grep -q "$file"; then
-                cat assets/SHA256SUMS* | grep -qE "^$sum [ *]$file\$" || {
-                  echo "::error::$file does not match the release SHA256SUMS."; exit 1; }
-              else
-                echo "::warning::The release has no checksum for $file."
-              fi
-              # An `any` package is served from every architecture directory.
-              if [ "$arch" = any ]; then dests="x86_64 aarch64"; else dests="$arch"; fi
-              for dest in $dests; do
-                mkdir -p "repo/$dest"
-                cp "$pkg" "repo/$dest/"
-              done
-              echo "$file  $sum"
-              found=1
-            done
-          done
-          [ "$found" = 1 ] || {
-            echo "::error::Release $TAG has no $PACKAGE-<version>-<arch>.pkg.tar.zst asset."; exit 1; }
+          if [ -n "$PACKAGE$TAG" ]; then
+            [ -n "$PACKAGE" ] && [ -n "$TAG" ] || {
+              echo "::error::Give both package and tag, or neither."; exit 1; }
+            scripts/plan.sh "$PACKAGE" "$TAG"
+          else
+            scripts/plan.sh
+          fi
+          publish=true
+          if ! ls repo/*/*.pkg.tar.zst >/dev/null 2>&1; then
+            echo "Nothing new to publish."; publish=false
+          elif [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: validated, publishing nothing."; publish=false
+          elif [ "$HAS_CREDENTIALS" != "true" ]; then
+            echo "::warning::R2 credentials are not set, so nothing was published."; publish=false
+          fi
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
 
       - name: Sign the packages
-        if: ${{ !inputs.dry_run }}
+        if: steps.plan.outputs.publish == 'true'
         env:
           GPG_PRIVATE_KEY: ${{ secrets.REPO_GPG_PRIVATE_KEY }}
         run: |
@@ -127,7 +96,7 @@ jobs:
       # Fetch the existing database so the other packages stay listed, add the
       # new package to it, and sign the result.
       - name: Rebuild the repository database
-        if: ${{ !inputs.dry_run }}
+        if: steps.plan.outputs.publish == 'true'
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -166,7 +135,7 @@ jobs:
           done
 
       - name: Publish to R2
-        if: ${{ !inputs.dry_run }}
+        if: steps.plan.outputs.publish == 'true'
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -187,4 +156,4 @@ jobs:
             --content-type application/pgp-keys --cache-control "no-cache"
           aws s3 cp install.sh "s3://$R2_BUCKET/install.sh" --endpoint-url "$endpoint" \
             --content-type "text/x-shellscript; charset=utf-8" --cache-control "no-cache"
-          echo "Published $PACKAGE $TAG to https://pkgs.btso.dev"
+          echo "Published to https://pkgs.btso.dev"

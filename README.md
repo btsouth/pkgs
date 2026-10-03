@@ -50,12 +50,26 @@ Installed apps stay installed; they just stop receiving updates.
 
 ## How packages get here
 
-Each app attaches its Arch package to its GitHub release. The
-[publish workflow](.github/workflows/publish.yml) downloads that package,
-checks it against the release checksums, signs it and adds it to the
-repository. Nothing is rebuilt, so the repository serves the same file as the
-release page.
+Each app attaches its Arch package to its GitHub release. Every hour the
+[publish workflow](.github/workflows/publish.yml) looks at the latest release
+of each project in [packages.txt](packages.txt). If a package is not in the
+repository yet, it downloads it, checks it against the release checksums,
+signs it and adds it. Nothing is rebuilt, so the repository serves the same
+file as the release page.
+
+To publish straight after a release instead of waiting for the hourly run:
 
 ```sh
-gh workflow run publish.yml -R btsouth/pkgs -f package=omaframe -f tag=v0.7.4
+gh workflow run publish.yml -R btsouth/pkgs
 ```
+
+## Adding a project
+
+1. Attach the package to the project's GitHub release, named the way
+   `makepkg` names it: `<package>-<version>-<release>-<arch>.pkg.tar.zst`.
+   The version must match the tag (`v1.2.0` for `1.2.0`), and a `SHA256SUMS`
+   asset listing the file is checked when present.
+2. Add one line to [packages.txt](packages.txt) and push. That publishes it.
+3. Add the project to the table at the top.
+
+Nothing needs setting up in the project's own repository.

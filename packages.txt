@@ -1,3 +1,5 @@
+# One project per line: <package> [<owner>/<repo>]
+# The repository defaults to btsouth/<package>.
 omadrop
 omaframe
 omakade
