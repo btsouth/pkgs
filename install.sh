@@ -71,13 +71,24 @@ HOOK
   say "Added an Omarchy hook so the repository survives a channel switch"
 fi
 
+# Fetch only this repository's database. `pacman -Sy` would refresh every
+# repository and then install against lists newer than the installed system,
+# which is the partial upgrade Arch warns about.
+say "Fetching the btsouth package list"
+sync_dir="$(pacman-conf DBPath)sync"
+for file in btsouth.db btsouth.db.sig; do
+  curl -fsSL "$repo_url/$(uname -m)/$file" -o "$tmp/$file" ||
+    err "Could not fetch $file from $repo_url (is $(uname -m) supported?)"
+  $sudo install -Dm644 "$tmp/$file" "$sync_dir/$file" ||
+    err "Could not write to $sync_dir"
+done
+
 if [ "$#" -eq 0 ]; then
-  $sudo pacman -Sy || err "pacman could not refresh its package lists."
   say "Repository added. Install with: sudo pacman -S <package>"
 else
   say "Installing $*"
-  $sudo pacman -Sy --noconfirm --needed "$@" ||
-    err "pacman could not install $*. If a dependency is too old, run your system update and try again."
+  $sudo pacman -S --noconfirm --needed "$@" ||
+    err "pacman could not install $*. If a dependency is missing or too old, run your system update and try again."
   say "Installed."
 fi
 say "Updates arrive with your normal system update (omarchy update or pacman -Syu)."

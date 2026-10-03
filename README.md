@@ -28,7 +28,7 @@ curl -fsSL https://pkgs.btso.dev/btsouth.gpg | sudo pacman-key --add -
 sudo pacman-key --lsign-key AA378A651D659C56BE5DB17B2F78D0FE524BB309
 
 printf '\n[btsouth]\nServer = https://pkgs.btso.dev/$arch\n' | sudo tee -a /etc/pacman.conf
-sudo pacman -Sy omaframe
+sudo pacman -Syu omaframe
 ```
 
 The second command trusts one exact key fingerprint. If the key served by
