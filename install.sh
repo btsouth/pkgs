@@ -98,6 +98,16 @@ done
 if [ "$#" -eq 0 ]; then
   say "Repository added. Install with: sudo pacman -S <package>"
 else
+  # A package with no build for this machine would only fail later as
+  # "target not found" with a misleading hint, so name it up front.
+  missing=""
+  for package in "$@"; do
+    pacman -Si -- "$package" >/dev/null 2>&1 || missing="$missing $package"
+  done
+  if [ -n "$missing" ]; then
+    available=$(pacman -Sl btsouth 2>/dev/null | awk '{print $2}' | paste -sd ' ' -)
+    err "No $(uname -m) build of:$missing. Available for $(uname -m): ${available:-none yet}."
+  fi
   say "Installing $*"
   $sudo pacman -S --noconfirm --needed "$@" ||
     err "pacman could not install $*. If a dependency is missing or too old, run your system update and try again."
