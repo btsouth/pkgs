@@ -1,7 +1,7 @@
 # One project per line: <package> [<owner>/<repo>] [attested]
 # The repository defaults to btsouth/<package>. `attested` requires a GitHub
 # build attestation on the package, proving the project's workflow built it.
-omadrop
+omadrop attested
 omaframe
 omakade attested
 omaroll attested
