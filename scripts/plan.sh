@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Stages every package the repository is missing. With a package and tag it
 # stages that release; with no arguments it looks at the latest release of
-# every project in packages.txt and stages the ones not served yet.
+# every project in packages.txt and stages the ones not served yet. A release
+# that fails its checks is listed in refused.txt and the others still go out.
 #
 #   scripts/plan.sh [<package> <tag>]
 set -euo pipefail
@@ -69,7 +70,10 @@ entries | while read -r package repo attested; do
   done <<<"$files"
   if [ "$missing" = 1 ]; then
     echo "$package: publishing $tag"
-    "$here/collect.sh" "$package" "$repo" "$tag" "$attested"
+    "$here/collect.sh" "$package" "$repo" "$tag" "$attested" || {
+      echo "::error::$package: refusing to publish $tag."
+      echo "$package $tag" >> refused.txt
+    }
   else
     echo "$package: $tag is already served"
   fi
