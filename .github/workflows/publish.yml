@@ -151,3 +151,11 @@ jobs:
       - name: Verify what is published
         if: inputs.dry_run != true && steps.plan.outputs.credentials == 'true'
         run: scripts/verify-live.sh
+
+      # The other packages were published; this fails the run so a refused
+      # release still sends a notification.
+      - name: Fail for refused releases
+        if: always()
+        run: |
+          [ ! -s refused.txt ] || {
+            echo "::error::Not published: $(paste -sd ',' refused.txt)"; exit 1; }

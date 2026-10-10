@@ -70,6 +70,12 @@ repository yet, it downloads it, checks it against the release checksums,
 signs it and adds it. Nothing is rebuilt, so the repository serves the same
 file as the release page.
 
+A package must also run on Omarchy stable, the oldest channel people use. If
+any binary in it needs a newer Qt or glibc than the
+[stable mirror](https://stable-mirror.omarchy.org) ships, or that mirror cannot
+be read, the release is refused and the run fails. Other projects still
+publish. Build packages against the stable mirror to avoid this.
+
 To publish straight after a release instead of waiting for the hourly run:
 
 ```sh
