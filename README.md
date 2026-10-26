@@ -1,7 +1,8 @@
 # btsouth packages
 
 A signed pacman repository for my Omarchy and Arch apps. Add it once and the
-apps update with the rest of your system (`omarchy update` or `pacman -Syu`).
+apps update with the rest of your system (`omarchy update` on Omarchy,
+`sudo pacman -Syu` on plain Arch).
 
 | Package | Project |
 | --- | --- |
@@ -21,16 +22,15 @@ curl -fsSL https://pkgs.btso.dev/install.sh | bash -s -- omaframe
 Already have one of these apps installed from a release download? Run the same
 command. The package name is the same, so it carries on from where you are.
 
-Omakade is also in Omarchy's repository, which pacman prefers during normal
-updates. To install this repository's version explicitly:
+Omakade and Omaroll are also in Omarchy's repository. It comes first in
+`pacman.conf`, so on Omarchy they update from there once your channel has them
+(edge first, then rc and stable). Until then they update from here. To take
+this repository's newer version early, update your system first, then select it:
 
 ```sh
-curl -fsSL https://pkgs.btso.dev/install.sh | bash
+omarchy update
 sudo pacman -S btsouth/omakade
 ```
-
-To update it directly from this repository on Omarchy, use
-`sudo pacman -Syu btsouth/omakade`.
 
 To do it by hand:
 
@@ -41,6 +41,9 @@ sudo pacman-key --lsign-key AA378A651D659C56BE5DB17B2F78D0FE524BB309
 printf '\n[btsouth]\nSigLevel = Required\nServer = https://pkgs.btso.dev/$arch\n' | sudo tee -a /etc/pacman.conf
 sudo pacman -Syu omaframe
 ```
+
+On Omarchy, which blocks a direct `pacman -Syu`, run `omarchy update` and then
+`sudo pacman -S omaframe` for the last step.
 
 The second command trusts one exact key fingerprint. If the key served by
 `pkgs.btso.dev` is ever a different one, that command fails on purpose.
@@ -87,8 +90,9 @@ gh workflow run publish.yml -R btsouth/pkgs
 The repository follows each project's latest release. To roll back a bad one,
 delete that GitHub release or mark it as a prerelease, then run the publish
 workflow. It republishes the release that is now the latest. People who
-already took the bad version get the older one with `sudo pacman -Syuu`, or
-the fix on its next release.
+already took the bad version get the older one with
+`sudo pacman -S btsouth/<package>` after their next system update, or the fix
+on its next release.
 
 To take a project out altogether, remove its line from
 [packages.txt](packages.txt), then:
