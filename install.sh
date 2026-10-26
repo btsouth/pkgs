@@ -113,4 +113,4 @@ else
     err "pacman could not install $*. If a dependency is missing or too old, run your system update and try again."
   say "Installed."
 fi
-say "Updates arrive with your normal system update (omarchy update or pacman -Syu)."
+say "Updates arrive with your normal system update (omarchy update on Omarchy, pacman -Syu on plain Arch)."
